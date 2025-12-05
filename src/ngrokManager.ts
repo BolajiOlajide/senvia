@@ -1,4 +1,4 @@
-import ngrok from 'ngrok';
+import * as ngrok from '@ngrok/ngrok';
 
 export interface TunnelConfig {
   readonly authtoken: string;
@@ -11,28 +11,22 @@ export interface TunnelHandle {
   stop: () => Promise<void>;
 }
 
-export async function startTunnel(config: TunnelConfig): Promise<TunnelHandle> {
+export const startTunnel = async (config: TunnelConfig): Promise<TunnelHandle> => {
   try {
-    const url = await ngrok.connect({
+    const listener = await ngrok.forward({
       addr: config.addr,
       authtoken: config.authtoken,
-      proto: 'http',
-      onStatusChange: config.onStatusChange,
     });
+
+    const url = listener.url();
+    if (!url) {
+      throw new Error('Failed to get tunnel URL');
+    }
 
     return {
       url,
       stop: async () => {
-        try {
-          await ngrok.disconnect(url);
-        } catch (err) {
-          console.warn('Warning: failed to disconnect ngrok tunnel:', err);
-        }
-        try {
-          await ngrok.kill();
-        } catch (err) {
-          console.warn('Warning: failed to kill ngrok process:', err);
-        }
+        await listener.close();
       },
     };
   } catch (error) {
